@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>غرفة القياس - نموذج أولي</title>
+<style>
+  :root{--bg:#111;--fg:#fff;--accent:#e8ff5a}
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
+  #start{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
+  #start h1{font-size:1.5rem}
+  #start p{opacity:.7;max-width:320px;line-height:1.6}
+  button,label.btn{background:var(--accent);color:#000;border:0;border-radius:14px;padding:14px 22px;font-size:1rem;font-weight:700;cursor:pointer}
+  button.ghost,label.ghost{background:#ffffff22;color:#fff}
+  #stage{display:none;position:fixed;inset:0;background:#000}
+  video{display:none}
+  canvas{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  #msg{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:#000a;padding:10px 16px;border-radius:20px;font-size:.9rem;white-space:nowrap}
+  #bar{position:absolute;bottom:0;left:0;right:0;padding:14px 14px calc(env(safe-area-inset-bottom,0px) + 14px);background:linear-gradient(transparent,#000c);display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;gap:10px;justify-content:center;align-items:center}
+  .sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent}
+  .sw.on{border-color:var(--accent)}
+  input[type=range]{width:55%;accent-color:var(--accent)}
+  input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div id="start">
+  <h1>👕 جرّب القطعة عليك</h1>
+  <p>هنفتح الكاميرا الأمامية. الصورة بتتعالج على جهازك ومش بتتبعت لأي مكان.</p>
+  <button id="go">افتح الكاميرا</button>
+  <p id="err" style="color:#ff8080"></p>
+</div>
+
+<div id="stage">
+  <video id="v" playsinline muted autoplay></video>
+  <canvas id="c"></canvas>
+  <div id="msg">جاري التحميل…</div>
+  <div id="bar">
+    <div class="row" id="swatches"></div>
+    <div class="row"><span>🔍</span><input type="range" id="scale" min="70" max="140" value="100"><span>حجم</span></div>
+    <div class="row">
+      <label class="btn ghost">صورة قطعتك (PNG شفاف)<input type="file" id="file" accept="image/png"></label>
+      <button class="ghost" id="stop">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const $ = id => document.getElementById(id);
+const v = $("v"), c = $("c"), ctx = c.getContext("2d"), msg = $("msg");
+let landmarker, stream, running = false, garment = new Image(), smooth = null;
+
+/* قطعة افتراضية: تيشيرت SVG بألوان مختلفة (للتجربة فقط) */
+const colors = ["#1f3a5f","#c0392b","#2d2d2d","#e8e1d0"];
+function shirtSVG(col){
+  return "data:image/svg+xml;utf8," + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="560" viewBox="0 0 600 560">
+   <path d="M205 20 Q300 70 395 20 L560 100 L520 215 L450 185 L450 540 L150 540 L150 185 L80 215 L40 100 Z" fill="${col}"/>
+   <path d="M205 20 Q300 70 395 20 Q300 120 205 20Z" fill="#00000040"/></svg>`);
+}
+function setGarment(src){ garment = new Image(); garment.src = src; }
+colors.forEach((col,i)=>{
+  const b=document.createElement("button");
+  b.className="sw"+(i?"":" on"); b.style.background=col;
+  b.onclick=()=>{document.querySelectorAll(".sw").forEach(x=>x.classList.remove("on"));b.classList.add("on");setGarment(shirtSVG(col));};
+  $("swatches").appendChild(b);
+});
+setGarment(shirtSVG(colors[0]));
+$("file").onchange = e => { const f=e.target.files[0]; if(f) setGarment(URL.createObjectURL(f)); };
+
+async function init(){
+  const fs = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  landmarker = await PoseLandmarker.createFromOptions(fs,{
+    baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:"GPU"},
+    runningMode:"VIDEO", numPoses:1
+  });
+}
+
+$("go").onclick = async () => {
+  try{
+    $("go").disabled = true; $("go").textContent = "جاري التحميل…";
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:1280}},audio:false});
+    v.srcObject = stream; await v.play();
+    if(!landmarker) await init();
+    $("start").style.display="none"; $("stage").style.display="block";
+    running = true; loop();
+  }catch(e){
+    $("go").disabled=false; $("go").textContent="افتح الكاميرا";
+    $("err").textContent = "تعذّر فتح الكاميرا: اسمح بالوصول للكاميرا وتأكد إن الصفحة على HTTPS.";
+    console.error(e);
+  }
+};
+$("stop").onclick = () => {
+  running=false; stream?.getTracks().forEach(t=>t.stop());
+  $("stage").style.display="none"; $("start").style.display="flex";
+  $("go").disabled=false; $("go").textContent="افتح الكاميرا";
+};
+
+const lerp=(a,b,t)=>a+(b-a)*t;
+
+function loop(){
+  if(!running) return;
+  if(v.videoWidth){
+    if(c.width!==v.videoWidth){ c.width=v.videoWidth; c.height=v.videoHeight; }
+    ctx.drawImage(v,0,0,c.width,c.height);
+    const res = landmarker.detectForVideo(v, performance.now());
+    const p = res.landmarks?.[0];
+    if(p && p[11].visibility>.5 && p[12].visibility>.5){
+      msg.style.display="none";
+      draw(p);
+    } else { msg.style.display="block"; msg.textContent="ارجع خطوة لورا لحد ما كتفك يظهر"; smooth=null; }
+  }
+  requestAnimationFrame(loop);
+}
+
+function draw(p){
+  const W=c.width,H=c.height;
+  // 11 = كتف أيسر، 12 = كتف أيمن، 23/24 = الحوض
+  const L={x:p[11].x*W,y:p[11].y*H}, R={x:p[12].x*W,y:p[12].y*H};
+  const hip={x:(p[23].x+p[24].x)/2*W,y:(p[23].y+p[24].y)/2*H};
+  const sc={x:(L.x+R.x)/2,y:(L.y+R.y)/2};
+  const sw=Math.hypot(L.x-R.x,L.y-R.y);
+  const angle=Math.atan2(L.y-R.y,L.x-R.x)+Math.PI; // ميل الكتفين
+  const k=$("scale").value/100;
+  const w=sw*1.75*k;
+  let h=w*(garment.naturalHeight/garment.naturalWidth||.93);
+  // لو الحوض ظاهر، نضبط الطول على الجذع
+  const torso=Math.hypot(hip.x-sc.x,hip.y-sc.y);
+  if(p[23].visibility>.5&&p[24].visibility>.5) h=lerp(h,torso*1.45*k,.5);
+
+  const t={x:sc.x,y:sc.y,w,h,a:angle};
+  smooth = smooth ? {x:lerp(smooth.x,t.x,.4),y:lerp(smooth.y,t.y,.4),w:lerp(smooth.w,t.w,.4),h:lerp(smooth.h,t.h,.4),a:lerp(smooth.a,t.a,.4)} : t;
+  const s=smooth;
+  ctx.save();
+  ctx.translate(s.x,s.y); ctx.rotate(s.a-Math.PI);
+  ctx.drawImage(garment,-s.w/2,-s.h*0.1,s.w,s.h); // الياقة عند منتصف الكتفين
+  ctx.restore();
+}
+</script>
+</body>
+</html>
