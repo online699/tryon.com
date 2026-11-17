@@ -38,10 +38,11 @@ body{background:#0b0c0f;color:#fff;font-family:system-ui,-apple-system,"Segoe UI
 <div id="app">
   <div class="top" id="top" hidden><img id="thumb" alt=""><b id="ttl"></b><span class="demo" id="demo" hidden>وضع تجريبي</span></div>
 
-  <!-- لو الصفحة اتفتحت من غير منتج -->
+  <!-- اختيار القطعة (لما الصفحة تتفتح من غير منتج) -->
   <div class="s" id="s-empty" hidden>
     <h2>👕 غرفة القياس</h2>
-    <p>افتح الصفحة دي من زرار «جرّب عليك» في صفحة المنتج في المتجر.</p>
+    <p>ارفع صورة القطعة (تيشيرت أو هودي أو جاكيت). الأفضل صورة واضحة للقطعة لوحدها على خلفية بسيطة.</p>
+    <label class="b">اختار صورة القطعة<input type="file" id="gfile" accept="image/*" hidden></label>
   </div>
 
   <div class="s" id="s-consent" hidden>
@@ -101,13 +102,27 @@ function show(n) {
 }
 function err(t) { $("errt").textContent = t; $("s-err").hidden = false; }
 
-if (!garment) { show("empty"); }
-else {
+function ready() {
   $("top").hidden = false; $("thumb").src = garment; $("ttl").textContent = title;
   if (!API) $("demo").hidden = false;
   if (back) { $("back").href = back; $("back").hidden = false; }
   show("consent");
 }
+if (!garment) { show("empty"); } else { ready(); }
+
+// تشغيل مستقل: رفع صورة القطعة مباشرة
+$("gfile").onchange = function (e) {
+  var f = e.target.files[0]; if (!f) return;
+  var im = new Image();
+  im.onload = function () {
+    var k = Math.min(1, 1024 / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement("canvas");
+    cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+    var cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.drawImage(im, 0, 0, cv.width, cv.height);
+    garment = cv.toDataURL("image/jpeg", 0.9); title = f.name.replace(/\.[^.]+$/, ""); ready();
+  };
+  im.src = URL.createObjectURL(f);
+};
 
 async function startCam() {
   stopCam();
