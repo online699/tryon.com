@@ -3,142 +3,174 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>غرفة القياس - نموذج أولي</title>
+<title>غرفة القياس</title>
 <style>
-  :root{--bg:#111;--fg:#fff;--accent:#e8ff5a}
-  *{box-sizing:border-box;margin:0}
-  html,body{height:100%;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif}
-  #start{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center}
-  #start h1{font-size:1.5rem}
-  #start p{opacity:.7;max-width:320px;line-height:1.6}
-  button,label.btn{background:var(--accent);color:#000;border:0;border-radius:14px;padding:14px 22px;font-size:1rem;font-weight:700;cursor:pointer}
-  button.ghost,label.ghost{background:#ffffff22;color:#fff}
-  #stage{display:none;position:fixed;inset:0;background:#000}
-  video{display:none}
-  canvas{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
-  #msg{position:absolute;top:calc(env(safe-area-inset-top,0px) + 14px);left:50%;transform:translateX(-50%);background:#000a;padding:10px 16px;border-radius:20px;font-size:.9rem;white-space:nowrap}
-  #bar{position:absolute;bottom:0;left:0;right:0;padding:14px 14px calc(env(safe-area-inset-bottom,0px) + 14px);background:linear-gradient(transparent,#000c);display:flex;flex-direction:column;gap:12px}
-  .row{display:flex;gap:10px;justify-content:center;align-items:center}
-  .sw{width:40px;height:40px;border-radius:50%;border:3px solid transparent}
-  .sw.on{border-color:var(--accent)}
-  input[type=range]{width:55%;accent-color:var(--accent)}
-  input[type=file]{display:none}
+:root{--hi:#d7ff3a}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:#0b0c0f;color:#fff;font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;line-height:1.6;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+#app{min-height:100%;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.top img{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#222}
+.top b{font-size:.95rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.demo{background:var(--hi);color:#111;font-size:.72rem;font-weight:700;border-radius:99px;padding:2px 10px}
+.s{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px;text-align:center}
+.s[hidden]{display:none}
+.s p{max-width:340px;color:#c9ccd3}
+.b{background:#fff;color:#000;border:0;border-radius:14px;padding:14px 22px;font:700 1rem inherit;font-family:inherit;cursor:pointer;text-decoration:none;display:inline-block}
+.b.g{background:#ffffff22;color:#fff}
+.frame{position:relative;overflow:hidden;border-radius:16px;background:#1b1d22;aspect-ratio:3/4;width:min(100%,calc((100dvh - 250px) * .75))}
+.frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.frame video.m{transform:scaleX(-1)}
+.sil{position:absolute;inset:0;width:100%;height:100%;fill:none;stroke:#ffffffcc;stroke-width:2.2;stroke-dasharray:7 6;pointer-events:none}
+.hint{position:absolute;top:8px;left:8px;right:8px;background:#000a;padding:6px 10px;border-radius:10px;font-size:.78rem}
+.count{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7rem;font-weight:800;text-shadow:0 2px 12px #000}
+.row{display:flex;gap:12px;align-items:center;justify-content:center;width:100%}
+.shot{width:68px;height:68px;border-radius:50%;background:#fff;border:5px solid #ffffff66;cursor:pointer}
+.spin{width:48px;height:48px;border:4px solid #ffffff33;border-top-color:#fff;border-radius:50%;animation:r 1s linear infinite}
+@keyframes r{to{transform:rotate(360deg)}}
+#out{max-width:100%;max-height:calc(100dvh - 230px);border-radius:14px;object-fit:contain}
+.err{background:#c0392b;border-radius:12px;padding:10px 14px;font-size:.9rem}
 </style>
 </head>
 <body>
-<div id="start">
-  <h1>👕 جرّب القطعة عليك</h1>
-  <p>هنفتح الكاميرا الأمامية. الصورة بتتعالج على جهازك ومش بتتبعت لأي مكان.</p>
-  <button id="go">افتح الكاميرا</button>
-  <p id="err" style="color:#ff8080"></p>
-</div>
+<div id="app">
+  <div class="top" id="top" hidden><img id="thumb" alt=""><b id="ttl"></b><span class="demo" id="demo" hidden>وضع تجريبي</span></div>
 
-<div id="stage">
-  <video id="v" playsinline muted autoplay></video>
-  <canvas id="c"></canvas>
-  <div id="msg">جاري التحميل…</div>
-  <div id="bar">
-    <div class="row" id="swatches"></div>
-    <div class="row"><span>🔍</span><input type="range" id="scale" min="70" max="140" value="100"><span>حجم</span></div>
+  <!-- لو الصفحة اتفتحت من غير منتج -->
+  <div class="s" id="s-empty" hidden>
+    <h2>👕 غرفة القياس</h2>
+    <p>افتح الصفحة دي من زرار «جرّب عليك» في صفحة المنتج في المتجر.</p>
+  </div>
+
+  <div class="s" id="s-consent" hidden>
+    <h2>جرّب القطعة عليك</h2>
+    <p>هنفتح الكاميرا لتصويرك مرة واحدة. صورتك بتتبعت لخدمة ذكاء اصطناعي لتجهيز النتيجة بس، ومش بنحتفظ بيها.</p>
+    <button class="b" id="agree">أوافق وأكمل</button>
+  </div>
+
+  <div class="s" id="s-cam" hidden>
+    <div class="frame" id="frame">
+      <video id="v" playsinline muted autoplay></video>
+      <svg class="sil" viewBox="0 0 240 320" preserveAspectRatio="none" aria-hidden="true">
+        <circle cx="120" cy="52" r="34"/><path d="M48 320V150Q48 112 92 102L120 116 148 102Q192 112 192 150V320"/>
+      </svg>
+      <div class="hint">ادخل جوه الفريم: راسك داخل الدايرة وكتفك على الخط، وإيديك بعيد عن جسمك</div>
+      <div class="count" id="count" hidden></div>
+    </div>
     <div class="row">
-      <label class="btn ghost">صورة قطعتك (PNG شفاف)<input type="file" id="file" accept="image/png"></label>
-      <button class="ghost" id="stop">إغلاق</button>
+      <label class="b g">رفع صورة<input type="file" id="file" accept="image/*" hidden></label>
+      <button class="shot" id="shot" aria-label="صوّر"></button>
+      <button class="b g" id="flip">قلب</button>
     </div>
   </div>
+
+  <div class="s" id="s-wait" hidden><div class="spin"></div><p>جاري تجهيز الصورة… ممكن تاخد لحد ٣٠ ثانية</p></div>
+
+  <div class="s" id="s-res" hidden>
+    <img id="out" alt="النتيجة" referrerpolicy="no-referrer">
+    <div class="row">
+      <button class="b g" id="retry">صورة تانية</button>
+      <a class="b" id="back" hidden>ارجع للمنتج واشتريه</a>
+    </div>
+  </div>
+
+  <div class="s" id="s-err" hidden style="flex:0"><div class="err" id="errt"></div></div>
 </div>
 
-<script type="module">
-import { PoseLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+<script>
+// ضع رابط الـ Worker هنا. لو فاضي: وضع تجريبي بيرجّع صورتك نفسها.
+var API = "";
 
-const $ = id => document.getElementById(id);
-const v = $("v"), c = $("c"), ctx = c.getContext("2d"), msg = $("msg");
-let landmarker, stream, running = false, garment = new Image(), smooth = null;
+var q = new URLSearchParams(location.search);
+var garment = q.get("img") || "";
+if (garment.indexOf("//") === 0) garment = "https:" + garment;
+if (!/^https:\/\//.test(garment)) garment = "";
+var title = q.get("title") || "القطعة";
+var back = q.get("back") || "";
+if (!/^https?:\/\//.test(back)) back = "";
 
-/* قطعة افتراضية: تيشيرت SVG بألوان مختلفة (للتجربة فقط) */
-const colors = ["#1f3a5f","#c0392b","#2d2d2d","#e8e1d0"];
-function shirtSVG(col){
-  return "data:image/svg+xml;utf8," + encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="560" viewBox="0 0 600 560">
-   <path d="M205 20 Q300 70 395 20 L560 100 L520 215 L450 185 L450 540 L150 540 L150 185 L80 215 L40 100 Z" fill="${col}"/>
-   <path d="M205 20 Q300 70 395 20 Q300 120 205 20Z" fill="#00000040"/></svg>`);
+var $ = function (id) { return document.getElementById(id); };
+var screens = ["empty", "consent", "cam", "wait", "res"];
+var stream = null, facing = "user", timer = null, person = null;
+
+function show(n) {
+  screens.forEach(function (s) { $("s-" + s).hidden = (s !== n); });
+  $("s-err").hidden = true;
 }
-function setGarment(src){ garment = new Image(); garment.src = src; }
-colors.forEach((col,i)=>{
-  const b=document.createElement("button");
-  b.className="sw"+(i?"":" on"); b.style.background=col;
-  b.onclick=()=>{document.querySelectorAll(".sw").forEach(x=>x.classList.remove("on"));b.classList.add("on");setGarment(shirtSVG(col));};
-  $("swatches").appendChild(b);
-});
-setGarment(shirtSVG(colors[0]));
-$("file").onchange = e => { const f=e.target.files[0]; if(f) setGarment(URL.createObjectURL(f)); };
+function err(t) { $("errt").textContent = t; $("s-err").hidden = false; }
 
-async function init(){
-  const fs = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-  landmarker = await PoseLandmarker.createFromOptions(fs,{
-    baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",delegate:"GPU"},
-    runningMode:"VIDEO", numPoses:1
-  });
+if (!garment) { show("empty"); }
+else {
+  $("top").hidden = false; $("thumb").src = garment; $("ttl").textContent = title;
+  if (!API) $("demo").hidden = false;
+  if (back) { $("back").href = back; $("back").hidden = false; }
+  show("consent");
 }
 
-$("go").onclick = async () => {
-  try{
-    $("go").disabled = true; $("go").textContent = "جاري التحميل…";
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user",width:{ideal:720},height:{ideal:1280}},audio:false});
-    v.srcObject = stream; await v.play();
-    if(!landmarker) await init();
-    $("start").style.display="none"; $("stage").style.display="block";
-    running = true; loop();
-  }catch(e){
-    $("go").disabled=false; $("go").textContent="افتح الكاميرا";
-    $("err").textContent = "تعذّر فتح الكاميرا: اسمح بالوصول للكاميرا وتأكد إن الصفحة على HTTPS.";
-    console.error(e);
-  }
+async function startCam() {
+  stopCam();
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1080 }, height: { ideal: 1920 } }, audio: false });
+    $("v").srcObject = stream; $("v").className = facing === "user" ? "m" : ""; await $("v").play();
+  } catch (e) { err("تعذّر فتح الكاميرا. اسمح بالوصول للكاميرا أو ارفع صورة بدلاً منها."); }
+}
+function stopCam() {
+  if (timer) { clearInterval(timer); timer = null; $("count").hidden = true; }
+  if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+}
+
+$("agree").onclick = function () { show("cam"); startCam(); };
+$("flip").onclick = function () { facing = facing === "user" ? "environment" : "user"; startCam(); };
+$("retry").onclick = function () { show("cam"); startCam(); };
+
+// عدّاد ٣ ثواني ثم قص الصورة بالظبط على الفريم
+$("shot").onclick = function () {
+  var v = $("v"); if (!v.videoWidth || timer) return;
+  var n = 3, c = $("count"); c.hidden = false; c.textContent = n;
+  timer = setInterval(function () {
+    n--; if (n > 0) { c.textContent = n; return; }
+    clearInterval(timer); timer = null; c.hidden = true; snap();
+  }, 1000);
 };
-$("stop").onclick = () => {
-  running=false; stream?.getTracks().forEach(t=>t.stop());
-  $("stage").style.display="none"; $("start").style.display="flex";
-  $("go").disabled=false; $("go").textContent="افتح الكاميرا";
+function snap() {
+  var v = $("v"), f = $("frame"), vw = v.videoWidth, vh = v.videoHeight, r = f.clientWidth / f.clientHeight, sw, sh, sx, sy;
+  if (vw / vh > r) { sh = vh; sw = vh * r; sx = (vw - sw) / 2; sy = 0; } else { sw = vw; sh = vw / r; sx = 0; sy = (vh - sh) / 2; }
+  var k = Math.min(1, 1024 / Math.max(sw, sh)), cv = document.createElement("canvas");
+  cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+  cv.getContext("2d").drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height); // غير معكوسة
+  person = cv.toDataURL("image/jpeg", 0.85); stopCam(); generate();
+}
+$("file").onchange = function (e) {
+  var f = e.target.files[0]; if (!f) return;
+  var im = new Image();
+  im.onload = function () {
+    var k = Math.min(1, 1024 / Math.max(im.naturalWidth, im.naturalHeight)), cv = document.createElement("canvas");
+    cv.width = Math.round(im.naturalWidth * k); cv.height = Math.round(im.naturalHeight * k);
+    cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height);
+    person = cv.toDataURL("image/jpeg", 0.85); stopCam(); generate();
+  };
+  im.src = URL.createObjectURL(f);
 };
 
-const lerp=(a,b,t)=>a+(b-a)*t;
-
-function loop(){
-  if(!running) return;
-  if(v.videoWidth){
-    if(c.width!==v.videoWidth){ c.width=v.videoWidth; c.height=v.videoHeight; }
-    ctx.drawImage(v,0,0,c.width,c.height);
-    const res = landmarker.detectForVideo(v, performance.now());
-    const p = res.landmarks?.[0];
-    if(p && p[11].visibility>.5 && p[12].visibility>.5){
-      msg.style.display="none";
-      draw(p);
-    } else { msg.style.display="block"; msg.textContent="ارجع خطوة لورا لحد ما كتفك يظهر"; smooth=null; }
+async function generate() {
+  show("wait");
+  try {
+    var out;
+    if (!API) { await new Promise(function (r) { setTimeout(r, 2000); }); out = person; }
+    else {
+      var res = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ person: person, garment: garment }) });
+      if (res.status === 429) throw new Error("rate");
+      if (!res.ok) throw new Error("http " + res.status);
+      out = (await res.json()).image;
+      if (!out) throw new Error("no image");
+    }
+    $("out").src = out; show("res");
+  } catch (e) {
+    console.error(e); show("cam"); startCam();
+    err(e.message === "rate" ? "وصلت للحد الأقصى حالياً، جرّب بعد شوية." : "حصلت مشكلة في تجهيز الصورة، جرّب تاني.");
   }
-  requestAnimationFrame(loop);
-}
-
-function draw(p){
-  const W=c.width,H=c.height;
-  // 11 = كتف أيسر، 12 = كتف أيمن، 23/24 = الحوض
-  const L={x:p[11].x*W,y:p[11].y*H}, R={x:p[12].x*W,y:p[12].y*H};
-  const hip={x:(p[23].x+p[24].x)/2*W,y:(p[23].y+p[24].y)/2*H};
-  const sc={x:(L.x+R.x)/2,y:(L.y+R.y)/2};
-  const sw=Math.hypot(L.x-R.x,L.y-R.y);
-  const angle=Math.atan2(L.y-R.y,L.x-R.x)+Math.PI; // ميل الكتفين
-  const k=$("scale").value/100;
-  const w=sw*1.75*k;
-  let h=w*(garment.naturalHeight/garment.naturalWidth||.93);
-  // لو الحوض ظاهر، نضبط الطول على الجذع
-  const torso=Math.hypot(hip.x-sc.x,hip.y-sc.y);
-  if(p[23].visibility>.5&&p[24].visibility>.5) h=lerp(h,torso*1.45*k,.5);
-
-  const t={x:sc.x,y:sc.y,w,h,a:angle};
-  smooth = smooth ? {x:lerp(smooth.x,t.x,.4),y:lerp(smooth.y,t.y,.4),w:lerp(smooth.w,t.w,.4),h:lerp(smooth.h,t.h,.4),a:lerp(smooth.a,t.a,.4)} : t;
-  const s=smooth;
-  ctx.save();
-  ctx.translate(s.x,s.y); ctx.rotate(s.a-Math.PI);
-  ctx.drawImage(garment,-s.w/2,-s.h*0.1,s.w,s.h); // الياقة عند منتصف الكتفين
-  ctx.restore();
 }
 </script>
 </body>
